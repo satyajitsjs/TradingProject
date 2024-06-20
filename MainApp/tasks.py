@@ -11,7 +11,7 @@ class CustomJSONEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super().default(obj)
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=10)  # Retry up to 3 times with a delay of 10 seconds
+@shared_task(bind=True)  # Retry up to 3 times with a delay of 10 seconds
 def process_csv_file(self, file_content, timeframe):
     try:
         reader = csv.DictReader(file_content.splitlines())
