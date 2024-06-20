@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Task Status</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script>
+        function checkTaskStatus(taskId) {
+            $.getJSON('/task-status/' + taskId + '/', function(data) {
+                if (data.status === 'SUCCESS') {
+                    $('#status').text('Processing complete.').css('color', 'green');
+                    $('#download-button').attr('href', data.url).show();
+                } else {
+                    setTimeout(function() {
+                        checkTaskStatus(taskId);
+                    }, 2000);
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            const taskId = '{{ task_id }}';
+            if (taskId) {
+                checkTaskStatus(taskId);
+            }
+        });
+    </script>
+</head>
+<body>
+    <h1>Processing Status</h1>
+    <div id="status">Processing... Please wait.</div>
+    <a id="download-button" href="{{ MEDIA_URL }}converted_data.json" style="display:none;" download>Download JSON</a>
+</body>
+</html>

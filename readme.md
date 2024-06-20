@@ -14,7 +14,7 @@ The project structure is as follows:
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-username/trading-project.git
+   git clone https://github.com/satyajitsjs/trading-project.git
    ```
 
 2. **Navigate to Project Directory**:
@@ -32,19 +32,45 @@ The project structure is as follows:
    ```bash
    pip install -r requirements.txt
    ```
-5. **Run Migrations**:
+
+5. **Install Redis Server** (Linux):
+   - Install Redis on your system using the appropriate package manager:
+     ```bash
+     sudo apt update
+     sudo apt install redis-server
+     ```
+
+   - Start the Redis server using the default configuration:
+     ```bash
+     sudo systemctl start redis-server
+     ```
+
+6. **Configure Celery with Redis**:
+   - Open `settings.py` in the Django project directory.
+   - Update the Celery broker URL and result backend URL to use Redis:
+     ```python
+     CELERY_BROKER_URL = 'redis://localhost:6379/0'
+     CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+     ```
+
+7. **Run Migrations**:
    ```bash
    python manage.py makemigrations
    python manage.py migrate
    ```
 
-6. **Start the Development Server**:
+8. **Start Celery Worker**:
+   ```bash
+   celery -A TradingProject worker -l info
+   ```
+
+9. **Start the Development Server**:
    ```bash
    python manage.py runserver
    ```
 
-7. **Access the Application**:
-   - Open a web browser and go to http://localhost:8000/upload/ to access the file upload page.
+10. **Access the Application**:
+    - Open a web browser and go to http://localhost:8000/ to access the file upload page.
 
 ## Usage
 
@@ -60,3 +86,7 @@ The project structure is as follows:
 ## Technologies Used
 
 - Django: Web framework for backend development.
+- Celery: Distributed task queue for asynchronous processing.
+- Redis: In-memory data structure store used as a message broker for Celery.
+
+

@@ -1,73 +1,35 @@
-from django.shortcuts import render
-from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render, redirect
+from django.http import JsonResponse,HttpResponseNotFound
 from .forms import UploadFileForm
-import pandas as pd
-import json
-import asyncio
-from io import BytesIO
+from .tasks import process_csv_file
+from celery.result import AsyncResult
+import os
+from django.conf import settings
 
-# Define the Candle class
-class Candle:
-    def __init__(self, id, open, high, low, close, date):
-        self.id = id
-        self.open = open
-        self.high = high
-        self.low = low
-        self.close = close
-        self.date = date
-
-def upload_file(request):
+def index(request):
     if request.method == 'POST':
         form = UploadFileForm(request.POST, request.FILES)
         if form.is_valid():
             file = request.FILES['file']
             timeframe = form.cleaned_data['timeframe']
-            candles = process_csv(file)
-            converted_candles = asyncio.run(convert_timeframe(candles, timeframe))
-            response = create_json_response(converted_candles)
-            return response
+            task = process_csv_file.delay(file.read().decode('utf-8'), timeframe)
+            return JsonResponse({'task_id': task.id})
     else:
         form = UploadFileForm()
-    return render(request, 'upload.html', {'form': form})
+    return render(request, 'index.html', {'form': form})
 
-def process_csv(file):
-    df = pd.read_csv(file, delimiter=',')  # Ensure it reads the .txt file as CSV
-    candles = []
-    for index, row in df.iterrows():
-        candle = Candle(
-            id=index,
-            open=row['OPEN'],
-            high=row['HIGH'],
-            low=row['LOW'],
-            close=row['CLOSE'],
-            date=f"{row['DATE']} {row['TIME']}"
-        )
-        candles.append(candle)
-    return candles
+def result(request, task_id):
+    json_file_path = os.path.join(settings.MEDIA_ROOT, 'converted_data.json')
+    if not os.path.exists(json_file_path):
+        return HttpResponseNotFound('File not found')
 
-async def convert_timeframe(candles, timeframe):
-    converted_candles = []
-    for i in range(0, len(candles), timeframe):
-        batch = candles[i:i+timeframe]
-        if not batch:
-            continue
-        open_price = batch[0].open
-        high_price = max(c.high for c in batch)
-        low_price = min(c.low for c in batch)
-        close_price = batch[-1].close
-        date = batch[0].date
-        converted_candles.append({
-            'open': open_price,
-            'high': high_price,
-            'low': low_price,
-            'close': close_price,
-            'date': date
-        })
-        await asyncio.sleep(0)  # Simulate async operation
-    return converted_candles
+    return render(request, 'result.html', {'task_id': task_id})
 
-def create_json_response(candles):
-    json_data = json.dumps(candles, indent=4)
-    response = HttpResponse(json_data, content_type='application/json')
-    response['Content-Disposition'] = 'attachment; filename="converted_candles.json"'
-    return response
+def task_status(request, task_id):
+    result = AsyncResult(task_id)
+    if result.ready():
+        json_file_path = result.result
+        json_file_url = os.path.join(settings.MEDIA_URL, os.path.basename(json_file_path))
+        return JsonResponse({'status': 'SUCCESS', 'url': json_file_url})
+    else:
+        return JsonResponse({'status': 'PENDING'})
