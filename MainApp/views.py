@@ -1,13 +1,21 @@
 from django.shortcuts import render
+from django.http import HttpResponse, JsonResponse
+from .forms import UploadFileForm
 import pandas as pd
 import json
-from django.http import JsonResponse, HttpResponse
-from .forms import UploadFileForm
-from .models import Candle
-from django.views.decorators.csrf import csrf_exempt
 import asyncio
+from io import BytesIO
 
-@csrf_exempt
+# Define the Candle class
+class Candle:
+    def __init__(self, id, open, high, low, close, date):
+        self.id = id
+        self.open = open
+        self.high = high
+        self.low = low
+        self.close = close
+        self.date = date
+
 def upload_file(request):
     if request.method == 'POST':
         form = UploadFileForm(request.POST, request.FILES)
@@ -16,16 +24,14 @@ def upload_file(request):
             timeframe = form.cleaned_data['timeframe']
             candles = process_csv(file)
             converted_candles = asyncio.run(convert_timeframe(candles, timeframe))
-            json_file_path = save_to_json(converted_candles)
-            response = HttpResponse(json_file_path, content_type='application/json')
-            response['Content-Disposition'] = f'attachment; filename="converted_candles.json"'
+            response = create_json_response(converted_candles)
             return response
     else:
         form = UploadFileForm()
     return render(request, 'upload.html', {'form': form})
 
 def process_csv(file):
-    df = pd.read_csv(file)
+    df = pd.read_csv(file, delimiter=',')  # Ensure it reads the .txt file as CSV
     candles = []
     for index, row in df.iterrows():
         candle = Candle(
@@ -43,6 +49,8 @@ async def convert_timeframe(candles, timeframe):
     converted_candles = []
     for i in range(0, len(candles), timeframe):
         batch = candles[i:i+timeframe]
+        if not batch:
+            continue
         open_price = batch[0].open
         high_price = max(c.high for c in batch)
         low_price = min(c.low for c in batch)
@@ -58,8 +66,8 @@ async def convert_timeframe(candles, timeframe):
         await asyncio.sleep(0)  # Simulate async operation
     return converted_candles
 
-def save_to_json(candles):
-    file_path = 'converted_candles.json'
-    with open(file_path, 'w') as json_file:
-        json.dump(candles, json_file)
-    return file_path
+def create_json_response(candles):
+    json_data = json.dumps(candles, indent=4)
+    response = HttpResponse(json_data, content_type='application/json')
+    response['Content-Disposition'] = 'attachment; filename="converted_candles.json"'
+    return response
